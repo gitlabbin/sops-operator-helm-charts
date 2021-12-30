@@ -40,6 +40,34 @@ spec:
       serviceAccountName: {{ include "sops-operator.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.gpg.enabled }}
+      initContainers:
+        - name: init-gpg
+          image: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.initImage.pullPolicy }}
+          command:
+            - sh
+            - '-c'
+            - >-
+              gpg --batch --import /var/secrets/gpg-secrets/gpg-key-secret;
+              gpg --import-ownertrust /var/secrets/gpg-secrets/gpg-ownertrust-secret;
+              echo ${PASSPHRASE} | gpg --batch --always-trust --yes --passphrase-fd 0 --pinentry-mode=loopback -s
+          env:
+            - name: GNUPGHOME
+              value: /var/secrets/gpg
+            - name: PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  key: gpg-passphrase
+                  name: {{ .Values.gpg.passphraseSecret }}
+          volumeMounts:
+          - mountPath: /var/secrets/gpg
+            name: sops-gpg
+          - mountPath: /var/secrets/gpg-secrets
+            name: sops-operator-gpg-key-secret
+          - mountPath: /var/secrets/gpg-secrets
+            name: sops-operator-gpg-ownertrust-secret
+      {{- end }}
       containers:
         - name: sops-operator
           securityContext:
@@ -47,6 +75,15 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            {{- if .Values.gpg.enabled }}
+            - name: GNUPGHOME
+              value: /var/secrets/gpg
+            - name: PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  key: gpg-passphrase
+                  name: {{ .Values.gpg.passphraseSecret }}
+            {{- end }}
             - name: WATCH_NAMESPACE
               value: "{{ if .Values.rbac.clusterScoped }}{{ .Values.watchNamespace }}{{ else }}{{ .Release.Namespace }}{{ end }}"
           {{- with .Values.env }}
@@ -72,12 +109,17 @@ spec:
               path: /readyz
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- with .Values.secret.mountPath }}
           volumeMounts:
+            {{- with .Values.secret.mountPath }}
             - mountPath: {{ . }}
               name: secrets
               readOnly: true
-          {{- end }}
+            {{- end }}
+            {{- if .Values.gpg.enabled }}
+            - mountPath: /var/secrets/gpg
+              name: sops-gpg
+            {{- end }}
+
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -90,9 +132,21 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.secret.mountPath }}
+      
       volumes:
+        {{- with .Values.secret.mountPath }}
         - name: secrets
           secret:
             secretName: {{ include "sops-operator.secretName" $ }}
-      {{- end }}
+        {{- end }}
+        {{- if .Values.gpg.enabled }}
+        - name: sops-operator-gpg-key-secret
+          secret:
+            secretName: {{ .Values.gpg.keySecret }}
+        - name: sops-operator-gpg-ownertrust-secret
+          secret:
+            secretName: {{ .Values.gpg.ownertrustSecret }}
+        - name: sops-gpg
+          emptyDir: {}
+        {{- end }}
+      

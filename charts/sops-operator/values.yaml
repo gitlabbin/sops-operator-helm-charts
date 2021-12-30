@@ -1,12 +1,18 @@
 replicas: 1
 
 image:
-  repository: craftypath/sops-operator
-  pullPolicy: IfNotPresent
+  repository: docker.io/briangxchen/sops-operator
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart version.
-  tag: ""
+  tag: "latest"
 
 imagePullSecrets: []
+
+initImage:
+  repository: docker.io/vladgh/gpg
+  pullPolicy: Always
+  tag: "latest"
+
 
 nameOverride: ""
 fullnameOverride: ""
@@ -83,3 +89,10 @@ env: []
 
 # A comma-separated list of namespaces to watch. Leave empty to watch all namespaces
 watchNamespace: ""
+
+
+gpg:
+  enabled: true
+  keySecret: gpg-key-secret
+  ownertrustSecret: gpg-ownertrust-secret
+  passphraseSecret: gpg-passphrase-secret
