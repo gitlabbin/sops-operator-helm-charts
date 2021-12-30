@@ -9,7 +9,7 @@ image:
 imagePullSecrets: []
 
 initImage:
-  repository: docker.io/vladgh/gpg
+  repository: docker.io/briangxchen/alpine-gpg
   pullPolicy: Always
   tag: "latest"
 
