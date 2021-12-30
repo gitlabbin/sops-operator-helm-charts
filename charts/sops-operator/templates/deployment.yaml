@@ -107,6 +107,7 @@ spec:
             - name: http-readiness
               containerPort: 8081
               protocol: TCP
+          {{- if .Values.gpg.enabled }}
           lifecycle:
             postStart:
               exec:
@@ -114,6 +115,7 @@ spec:
                   - sh
                   - -c
                   - echo ${PASSPHRASE} | gpg --batch --always-trust --yes --passphrase-fd 0 --pinentry-mode=loopback -s
+          {{- end }}
           readinessProbe:
             httpGet:
               port: http-readiness
